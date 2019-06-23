@@ -106,18 +106,16 @@ export class TransactionsExplorer {
 	}
 
 	static isMinerTx(rawTransaction: RawDaemon_Transaction) {
-		if (rawTransaction.vin.length > 0)
+		if (!Array.isArray(rawTransaction.vout) || rawTransaction.vin.length > 0)
 			return false;
-		if(rawTransaction.vout.length === 0){
+		if(!Array.isArray(rawTransaction.vout) || rawTransaction.vout.length === 0){
 			console.error('Weird tx !', rawTransaction);
 			return false;
 		}
 		
 		try {
 			return parseInt(rawTransaction.vout[0].amount) !== 0;
-		}
-		catch(err) {
-			return parseInt(rawTransaction.vout[0].amount) !== 0;
+		} catch(err) {
 			return false;
 		}
 	}
@@ -186,7 +184,13 @@ export class TransactionsExplorer {
 		for (let iOut = 0; iOut < rawTransaction.vout.length; ++iOut) {
 			let out = rawTransaction.vout[iOut];
 			let txout_k = out.target;
-			let amount : number = parseInt(out.amount);
+			let amount : number = 0;
+			try {
+				amount = parseInt(out.amount);
+			}catch (e) {
+				console.error(e);
+				continue;
+			}
 			let output_idx_in_tx = iOut;
 
 			let generated_tx_pubkey = CnNativeBride.derive_public_key(derivation,output_idx_in_tx,wallet.keys.pub.spend);//5.5ms
@@ -256,7 +260,7 @@ export class TransactionsExplorer {
 			let keyImages = wallet.getTransactionKeyImages();
 			for (let iIn = 0; iIn < rawTransaction.vin.length; ++iIn) {
 				let vin = rawTransaction.vin[iIn];
-				if (keyImages.indexOf(vin.key.k_image) != -1) {
+				if (vin.key && keyImages.indexOf(vin.key.k_image) !== -1) {
 					// console.log('found in', vin);
 					let walletOuts = wallet.getAllOuts();
 					for (let ut of walletOuts) {
@@ -279,6 +283,8 @@ export class TransactionsExplorer {
 			let txOutIndexes = wallet.getTransactionOutIndexes();
 			for (let iIn = 0; iIn < rawTransaction.vin.length; ++iIn) {
 				let vin = rawTransaction.vin[iIn];
+
+				if(!vin.key)continue;
 
 				let absoluteOffets = vin.key.key_offsets.slice();
 				for (let i = 1; i < absoluteOffets.length; ++i) {
